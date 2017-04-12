@@ -2,11 +2,11 @@
 //
 //  D-I-Y Polishing Station
 //
-//  Copyright (c) 2017 Rey Medina
+//  Rey Medina 2017
 //
 //
 //  ACKNOWLEDGEMENTS
-//  This project will not be possible without the prior work of the following persons:
+//  This project will not possible without the prior work of the following persons:
 //  
 //  Angelo Fiorillo - Kitchen Timer code
 //  Matthias Hertel - OneButton library and code
@@ -119,6 +119,9 @@ int dataSelection = 0;
 // Buzzer pin config
 #define buzzerPin 10
 
+unsigned long previousMillis = 0;
+const long BeepInterval = 3500; 
+
 // humidifier pin config
 #define relayPin 12
 bool HumidifierRunning = false;
@@ -126,9 +129,11 @@ bool HumidifierRunning = false;
 // LED colors
 #define PixelPin 13
 const int intMaxLEDColors = 7;
-int intCurrLED = 1;
-int intWipeWait = 0;
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(12, PixelPin, NEO_GRB + NEO_KHZ800);
+const int intWipeWait = 0;
+int intCurrLED = 0;
+
+const int intPixels = 17;
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(intPixels, PixelPin, NEO_GRB + NEO_KHZ800);
 
 // initialize the stepper library on pins 8 through 11:
 //const int stepsPerRevolution = 200;  // Nema 14
@@ -200,8 +205,16 @@ void loop() {
     switch(currentMode) {
     
       case MODE_IDLE:
-        // toggle beep on/off
-        blnSoundEnabled = (!blnSoundEnabled);
+        if(iLastDir == RotateCW) {
+          // toggle beep on/off
+          blnSoundEnabled = (!blnSoundEnabled);
+          if (blnSoundEnabled) Beep();
+        }
+        else {
+          // turn chamber light on/off
+          if (intCurrLED == 0) intCurrLED = 1 ; else intCurrLED = 0;
+          TurnLedON();
+        }
         break;
         
       case MODE_SETUP:
@@ -303,6 +316,7 @@ void loop() {
         
         if( btnLastAction == btnReleased )
         {
+          if (blnSoundEnabled) Beep();
           currentMode = MODE_SETUP;
         }
            
@@ -313,9 +327,12 @@ void loop() {
             currentMode = currentMode == MODE_IDLE ? MODE_RUNNING : MODE_IDLE;
             if(currentMode == MODE_RUNNING)
             {
+//              if (blnSoundEnabled) Beep();
+              
               // STARTING TIMER!
               startTime = now();
 
+              if (intCurrLED == 0) intCurrLED = 1;
               TurnLedON();
             }
           } else {
@@ -347,6 +364,7 @@ void loop() {
           currentSeconds = setupSeconds;
           dataSelection = 0;
           currentMode = MODE_IDLE;
+          if (blnSoundEnabled) Beep();
         }
         break;
       
@@ -423,6 +441,8 @@ void loop() {
       
     case MODE_RINGING:
 
+      unsigned long currentMillis = millis();
+
       if (HumidifierRunning) {
          digitalWrite(relayPin, HIGH);
          HumidifierRunning = false;
@@ -430,15 +450,14 @@ void loop() {
 
       if (blnSoundEnabled)
       {
-
-        for (int intRepeat = 0; intRepeat < 1; intRepeat++ )
-        {
-          tone(buzzerPin, 2100);
-          delay(80);
-          noTone(buzzerPin);
-          delay(80);
-        }
-        delay(2000);
+        if (currentMillis - previousMillis >= BeepInterval) {
+            // save the last time you blinked the LED
+            previousMillis = currentMillis;
+            Beep();
+            Beep();
+            delay(150);
+            Beep();
+        }            
       }
       break;
   }
@@ -690,3 +709,9 @@ void DisplayPolishProgress() {
   if (intPolishProgress>TICKVAL*7)                                 lcd.print("Polishing.......");  
 }
 
+void Beep() {
+  tone(buzzerPin, 2100);
+  delay(40);
+  noTone(buzzerPin);
+//  delay(80);
+}
